@@ -1,0 +1,43 @@
+{
+  "name": "@agentops/gateway",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch --env-file-if-exists=.env src/main.ts",
+    "build": "tsc -p tsconfig.build.json",
+    "start": "node dist/src/main.js",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "db:generate": "drizzle-kit generate",
+    "db:migrate": "tsx --env-file-if-exists=.env src/db/migrate-cli.ts",
+    "db:seed": "tsx --env-file-if-exists=.env src/db/seed-cli.ts",
+    "db:setup": "tsx --env-file-if-exists=.env src/db/setup-cli.ts",
+    "eval": "tsx --env-file-if-exists=.env evals/run.ts"
+  },
+  "dependencies": {
+    "@agentops/contracts": "workspace:*",
+    "@anthropic-ai/sdk": "^0.131.0",
+    "@fastify/cors": "^11.3.0",
+    "@fastify/rate-limit": "^11.2.0",
+    "@google/genai": "^2.27.0",
+    "@opentelemetry/api": "^1.9.1",
+    "@opentelemetry/exporter-trace-otlp-http": "^0.223.0",
+    "@opentelemetry/resources": "^2",
+    "@opentelemetry/sdk-node": "^0.223.0",
+    "@opentelemetry/semantic-conventions": "^1.43.0",
+    "drizzle-orm": "^0.45.3",
+    "fastify": "^5.12.5",
+    "openai": "^7.30.0",
+    "pg": "^8.23.1",
+    "zod": "^4.6.5"
+  },
+  "devDependencies": {
+    "@types/node": "^24",
+    "@types/pg": "^8.23.1",
+    "drizzle-kit": "^0.31.11",
+    "tsx": "^4.23.15",
+    "typescript": "~6.0.3",
+    "vitest": "^5.0.3"
+  }
+}
