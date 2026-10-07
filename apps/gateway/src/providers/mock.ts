@@ -113,8 +113,12 @@ function decide(req: ChatRequest): Decision {
     return call('add_note', { contactId, body: extractNoteBody(userText) });
   }
   if (intents.move && toolNames.has('move_deal_stage') && !called.has('move_deal_stage')) {
-    const deal = openDealFrom(outcomes);
     const stage = /\b(qualified|proposal|won|lost)\b/.exec(text)?.[1] ?? 'qualified';
+    // Only propose forward moves (or closing as lost) — never drag a deal back down the pipeline.
+    const order = ['lead', 'qualified', 'proposal', 'won'];
+    const deal = openDealsFrom(outcomes).find(
+      (d) => stage === 'lost' || order.indexOf(d.stage) < order.indexOf(stage),
+    );
     if (deal) return call('move_deal_stage', { dealId: deal.id, stage });
   }
 
@@ -162,8 +166,8 @@ function contactFrom(outcomes: ToolOutcome[]): ContactLike | null {
   return null;
 }
 
-function openDealFrom(outcomes: ToolOutcome[]) {
-  return contactFrom(outcomes)?.deals?.find((d) => d.stage !== 'won' && d.stage !== 'lost') ?? null;
+function openDealsFrom(outcomes: ToolOutcome[]) {
+  return contactFrom(outcomes)?.deals?.filter((d) => d.stage !== 'won' && d.stage !== 'lost') ?? [];
 }
 
 function usd(n: number): string {
