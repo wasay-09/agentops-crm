@@ -85,7 +85,8 @@ export const SEED_ROUTING = [
     taskType: 'chat',
     chain: ['anthropic:claude-sonnet-5-5', 'openai:gpt-5', 'google:gemini-2.5-pro'],
     budgetModel: 'anthropic:claude-haiku-4-5',
-    maxOutputTokens: 1024,
+    // Adaptive thinking on Sonnet/Opus 5.5 counts against max_tokens, so leave headroom.
+    maxOutputTokens: 4096,
   },
   {
     taskType: 'summarize',
@@ -97,7 +98,7 @@ export const SEED_ROUTING = [
     taskType: 'draft_email',
     chain: ['anthropic:claude-sonnet-5-5', 'openai:gpt-5'],
     budgetModel: 'anthropic:claude-haiku-4-5',
-    maxOutputTokens: 600,
+    maxOutputTokens: 2048,
   },
   {
     taskType: 'classify',
