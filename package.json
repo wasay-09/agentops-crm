@@ -1,0 +1,30 @@
+{
+  "name": "agentops-crm",
+  "private": true,
+  "description": "AI gateway and agent platform for a CRM: routing, prompt registry, tool approvals, usage and cost tracking, tracing, evals.",
+  "packageManager": "pnpm@10.15.1",
+  "engines": {
+    "node": ">=22.12"
+  },
+  "scripts": {
+    "build": "pnpm --filter \"./packages/*\" build && pnpm --filter \"./apps/*\" build",
+    "dev": "pnpm --filter @agentops/contracts build && pnpm --parallel --filter \"./apps/*\" dev",
+    "lint": "biome check .",
+    "format": "biome format --write .",
+    "typecheck": "pnpm -r typecheck",
+    "test": "pnpm -r --workspace-concurrency=1 test",
+    "db:setup": "pnpm --filter @agentops/gateway db:setup && pnpm --filter @agentops/crm db:setup",
+    "eval": "pnpm --filter @agentops/gateway eval"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "2.5.15",
+    "typescript": "~6.0.3"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "@swc/core",
+      "esbuild",
+      "@nestjs/core"
+    ]
+  }
+}
