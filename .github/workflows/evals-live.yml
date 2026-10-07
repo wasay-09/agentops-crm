@@ -1,0 +1,59 @@
+name: Live evals
+
+# Same golden cases as CI, against real providers. Costs real money, so: nightly + manual only.
+on:
+  schedule:
+    - cron: "0 3 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  live:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    environment: evals
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 3s --health-timeout 3s --health-retries 20
+    env:
+      EVAL_MODE: live
+      EVAL_DATABASE_URL: postgres://postgres:postgres@localhost:5432/agentops_gateway_eval
+      EVAL_MIN_PASS_RATE: "0.85"
+      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+      OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+      GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+    steps:
+      - name: Check keys
+        id: keys
+        run: |
+          if [ -z "$ANTHROPIC_API_KEY$OPENAI_API_KEY$GEMINI_API_KEY" ]; then
+            echo "No provider keys configured in the 'evals' environment — skipping." >> "$GITHUB_STEP_SUMMARY"
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+          fi
+      - uses: actions/checkout@v4
+        if: steps.keys.outputs.skip != 'true'
+      - uses: pnpm/action-setup@v4
+        if: steps.keys.outputs.skip != 'true'
+      - uses: actions/setup-node@v4
+        if: steps.keys.outputs.skip != 'true'
+        with:
+          node-version: 24
+          cache: pnpm
+      - if: steps.keys.outputs.skip != 'true'
+        run: pnpm install --frozen-lockfile && pnpm --filter @agentops/contracts build
+      - if: steps.keys.outputs.skip != 'true'
+        run: pnpm eval
+      - if: always() && steps.keys.outputs.skip != 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: eval-report-live
+          path: apps/gateway/eval-report.*

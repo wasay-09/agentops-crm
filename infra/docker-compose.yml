@@ -1,0 +1,76 @@
+# Full local stack: docker compose -f infra/docker-compose.yml up --build
+# Web: http://localhost:8080  ·  Jaeger: http://localhost:16686  ·  Gateway: http://localhost:4000
+name: agentops
+
+x-otel: &otel
+  OTEL_EXPORTER_OTLP_ENDPOINT: http://jaeger:4318
+
+services:
+  postgres:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_USER: agentops
+      POSTGRES_PASSWORD: agentops
+      POSTGRES_DB: postgres
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./postgres/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    ports: ["5432:5432"]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U agentops"]
+      interval: 3s
+      retries: 20
+
+  jaeger:
+    image: jaegertracing/jaeger:latest
+    ports:
+      - "16686:16686" # UI
+      - "4318:4318"   # OTLP/HTTP
+
+  gateway:
+    build: { context: .., target: gateway }
+    depends_on: { postgres: { condition: service_healthy } }
+    environment:
+      <<: *otel
+      NODE_ENV: development # local stack uses the repo's dev secrets
+      DATABASE_URL: postgres://agentops:agentops@postgres:5432/agentops_gateway
+      CRM_TOOL_URL: http://crm:3000
+      CRM_TOOL_TOKEN: ${CRM_TOOL_TOKEN:-dev-tool-token}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      LLM_MOCK_FALLBACK: "true"
+      MOCK_LATENCY_MS: "300"
+      SEED_ON_START: "true"
+      ALLOW_FAULT_INJECTION: "true"
+      SEED_SALES_API_KEY: ${SEED_SALES_API_KEY:-ak_dev_sales_00000000000000000000}
+      SEED_ADMIN_API_KEY: ${SEED_ADMIN_API_KEY:-ak_dev_admin_00000000000000000000}
+    ports: ["4000:4000"]
+
+  crm:
+    build: { context: .., target: crm }
+    depends_on: { postgres: { condition: service_healthy } }
+    environment:
+      <<: *otel
+      DATABASE_URL: postgres://agentops:agentops@postgres:5432/agentops_crm
+      JWT_SECRET: ${JWT_SECRET:-dev-jwt-secret-change-me}
+      CRM_TOOL_TOKEN: ${CRM_TOOL_TOKEN:-dev-tool-token}
+      GATEWAY_URL: http://gateway:4000
+      GATEWAY_API_KEY: ${SEED_SALES_API_KEY:-ak_dev_sales_00000000000000000000}
+      GATEWAY_ADMIN_KEY: ${SEED_ADMIN_API_KEY:-ak_dev_admin_00000000000000000000}
+      SEED_ON_START: "true"
+    ports: ["3000:3000"]
+
+  web:
+    build:
+      context: ..
+      target: web
+      args:
+        VITE_TRACE_URL_TEMPLATE: http://localhost:16686/trace/{traceId}
+    depends_on: [crm]
+    environment:
+      CRM_UPSTREAM: http://crm:3000
+    ports: ["8080:8080"]
+
+volumes:
+  pgdata:

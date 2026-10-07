@@ -1,0 +1,61 @@
+name: Deploy
+
+# main → staging automatically after CI passes; production by manual dispatch
+# (protect the "production" environment with required reviewers in repo settings).
+on:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: Target environment
+        type: choice
+        options: [staging, production]
+        default: staging
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    environment: ${{ github.event.inputs.environment || 'staging' }}
+    concurrency:
+      group: deploy-${{ github.event.inputs.environment || 'staging' }}
+      cancel-in-progress: false
+    env:
+      RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+      TARGET_ENV: ${{ github.event.inputs.environment || 'staging' }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
+      - name: Check deploy configuration
+        id: cfg
+        run: |
+          if [ -z "$RAILWAY_TOKEN" ]; then
+            echo "RAILWAY_TOKEN is not set for the '$TARGET_ENV' environment — skipping deploy." >> "$GITHUB_STEP_SUMMARY"
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Install Railway CLI
+        if: steps.cfg.outputs.skip != 'true'
+        run: npm install -g @railway/cli
+      # Each service builds the repo Dockerfile with its APP variable; migrations run on container start.
+      - name: Deploy gateway
+        if: steps.cfg.outputs.skip != 'true'
+        run: railway up --ci --service gateway --environment "$TARGET_ENV"
+      - name: Deploy crm
+        if: steps.cfg.outputs.skip != 'true'
+        run: railway up --ci --service crm --environment "$TARGET_ENV"
+      - name: Deploy web
+        if: steps.cfg.outputs.skip != 'true'
+        run: railway up --ci --service web --environment "$TARGET_ENV"
+      - name: Smoke test
+        if: steps.cfg.outputs.skip != 'true' && vars.WEB_URL != ''
+        run: |
+          curl -fsS --retry 10 --retry-delay 6 --retry-all-errors "${{ vars.WEB_URL }}/healthz"
+          curl -fsS --retry 10 --retry-delay 6 --retry-all-errors "${{ vars.WEB_URL }}/api/health"
